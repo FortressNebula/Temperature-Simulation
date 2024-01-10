@@ -31,6 +31,5 @@ windows-config.json
 build/
 .gradle/
 .idea/
-gradle/
 /desktop/build/
 /core/build/

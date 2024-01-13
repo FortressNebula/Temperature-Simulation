@@ -4,19 +4,18 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.nebula.tempsim.math.Vector2i;
 import com.nebula.tempsim.tile.Tile;
 import com.nebula.tempsim.tile.TileGrid;
-import com.sun.org.apache.xpath.internal.operations.Bool;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class TemperatureSimulation extends ApplicationAdapter {
 	// Major simulation constants
@@ -31,6 +30,9 @@ public class TemperatureSimulation extends ApplicationAdapter {
 			new Vector2i(-1,  0),
 			new Vector2i( 0, -1)
 	};
+	// Constants for rendering
+	static final Color BACKGROUND_COLOUR = new Color(0x1c1d1fff);
+	static final float OUTLINE_PIXELS = 1;
 
 	// Global vars controlling speed of simulation as well as painting tiles
 	static float timeScale = 0.5f;
@@ -45,10 +47,26 @@ public class TemperatureSimulation extends ApplicationAdapter {
 
 	// Whether the game is paused or unpaused
 	boolean isRunning = false;
+
+	// Rendering
+	FrameBuffer main;
+	ShaderProgram outlineShader;
+	Vector2 outlineOffsets;
 	
 	@Override
 	public void create () {
+		// Rendering init
 		batch = new SpriteBatch();
+		main = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), false);
+		outlineShader = new ShaderProgram(Gdx.files.internal("shaders/outline.vsh"), Gdx.files.internal("shaders/outline.fsh"));
+
+		outlineOffsets = new Vector2(
+				OUTLINE_PIXELS / Gdx.graphics.getWidth(),
+				OUTLINE_PIXELS / Gdx.graphics.getHeight()
+		);
+
+		if (!outlineShader.isCompiled())
+			throw new GdxRuntimeException("Outline shader failed to compile!" + outlineShader.getLog());
 
 		// Tile map containing the various tiles
 		tilemap = new Texture("tilemap.png");
@@ -69,13 +87,16 @@ public class TemperatureSimulation extends ApplicationAdapter {
 
 	@Override
 	public void render () {
-		ScreenUtils.clear(new Color(0x1c1d1fff));
+		ScreenUtils.clear(BACKGROUND_COLOUR);
 
 		// Update the grid based on the current simulation model + take user input
 		update();
 
 		// Render the grid
+		main.begin();
+		ScreenUtils.clear(0, 0, 0, 0);
 		batch.begin();
+
 		GRID.forEverySquare((x, y) -> {
 			// Don't render empty tiles
 			if (GRID.emptyAt(x, y)) return;
@@ -89,6 +110,17 @@ public class TemperatureSimulation extends ApplicationAdapter {
 			// Draw the tile
 			batch.draw(GRID.get(x, y).getRegion(), x * SQUARE_SIZE, y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
 		});
+
+		batch.end();
+		main.end();
+
+		// Draw main texture through an outline shader
+		batch.begin();
+		batch.setShader(outlineShader);
+		outlineShader.setUniformf("u_offsets", outlineOffsets);
+		batch.setColor(Color.WHITE);
+		batch.draw(main.getColorBufferTexture(), 0, Gdx.graphics.getHeight(), Gdx.graphics.getWidth(), -Gdx.graphics.getHeight());
+		batch.setShader(null);
 
 		// Render time indicator
 		int numberTriangles = timeScale < 0.4f ? 1 : (timeScale > 0.6f ? 3 : 2);
@@ -108,6 +140,7 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		batch.setColor(Color.WHITE);
 		batch.draw(brushType.getRegion(), Gdx.graphics.getWidth() - SPACING - SIZE, SPACING, SIZE, SIZE);
 		batch.draw(brush, Gdx.graphics.getWidth() - 2*SPACING - 2*SIZE, SPACING, SIZE, SIZE);
+
 		batch.end();
 	}
 
@@ -189,6 +222,9 @@ public class TemperatureSimulation extends ApplicationAdapter {
 	@Override
 	public void dispose () {
 		batch.dispose();
+		main.dispose();
+		outlineShader.dispose();
+
 		speedIndicator.dispose();
 		pauseIndicator.dispose();
 		tilemap.dispose();

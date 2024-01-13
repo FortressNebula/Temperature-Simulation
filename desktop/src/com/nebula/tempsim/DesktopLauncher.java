@@ -11,7 +11,7 @@ public class DesktopLauncher {
 		config.setForegroundFPS(60);
 		config.setTitle("Temperature Simulator");
 		config.setResizable(false);
-		config.setWindowedMode(1200, 800);
+		config.setWindowedMode(1200, 600);
 		new Lwjgl3Application(new TemperatureSimulation(), config);
 	}
 }

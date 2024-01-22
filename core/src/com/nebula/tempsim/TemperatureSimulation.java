@@ -32,7 +32,7 @@ public class TemperatureSimulation extends ApplicationAdapter {
 	};
 	// Constants for rendering
 	static final Color BACKGROUND_COLOUR = new Color(0x1c1d1fff);
-	static final float OUTLINE_PIXELS = 1;
+	static final float OUTLINE_PIXELS = 2;
 
 	// Global vars controlling speed of simulation as well as painting tiles
 	static float timeScale = 0.5f;
@@ -49,8 +49,10 @@ public class TemperatureSimulation extends ApplicationAdapter {
 	boolean isRunning = false;
 
 	// Rendering
+	FrameBuffer blurry;
 	FrameBuffer main;
 	ShaderProgram outlineShader;
+	ShaderProgram bloomShader;
 	Vector2 outlineOffsets;
 	
 	@Override
@@ -58,7 +60,10 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		// Rendering init
 		batch = new SpriteBatch();
 		main = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), false);
-		outlineShader = new ShaderProgram(Gdx.files.internal("shaders/outline.vsh"), Gdx.files.internal("shaders/outline.fsh"));
+		blurry = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), false);
+
+		outlineShader = newShader("outline");
+		bloomShader = newShader("bloom");
 
 		outlineOffsets = new Vector2(
 				OUTLINE_PIXELS / Gdx.graphics.getWidth(),
@@ -85,6 +90,10 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		GRID.init(Gdx.graphics.getWidth() / SQUARE_SIZE, Gdx.graphics.getHeight() / SQUARE_SIZE);
 	}
 
+	public ShaderProgram newShader (String name) {
+		return new ShaderProgram(Gdx.files.internal("shaders/" + name + ".vsh"), Gdx.files.internal("shaders/" + name + ".fsh"));
+	}
+
 	@Override
 	public void render () {
 		ScreenUtils.clear(BACKGROUND_COLOUR);
@@ -93,7 +102,7 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		update();
 
 		// Render the grid
-		main.begin();
+		blurry.begin();
 		ScreenUtils.clear(0, 0, 0, 0);
 		batch.begin();
 
@@ -112,13 +121,23 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		});
 
 		batch.end();
+		blurry.end();
+
+		main.begin();
+		ScreenUtils.clear(0, 0, 0, 0);
+		batch.begin();
+		batch.setShader(bloomShader);
+		batch.getShader().setUniformf("u_offsets", outlineOffsets);
+		batch.setColor(Color.WHITE);
+		batch.draw(blurry.getColorBufferTexture(), 0, Gdx.graphics.getHeight(), Gdx.graphics.getWidth(), -Gdx.graphics.getHeight());
+		batch.end();
+
 		main.end();
 
 		// Draw main texture through an outline shader
 		batch.begin();
 		batch.setShader(outlineShader);
-		outlineShader.setUniformf("u_offsets", outlineOffsets);
-		batch.setColor(Color.WHITE);
+		batch.getShader().setUniformf("u_offsets", outlineOffsets);
 		batch.draw(main.getColorBufferTexture(), 0, Gdx.graphics.getHeight(), Gdx.graphics.getWidth(), -Gdx.graphics.getHeight());
 		batch.setShader(null);
 
@@ -224,6 +243,7 @@ public class TemperatureSimulation extends ApplicationAdapter {
 		batch.dispose();
 		main.dispose();
 		outlineShader.dispose();
+		bloomShader.dispose();
 
 		speedIndicator.dispose();
 		pauseIndicator.dispose();

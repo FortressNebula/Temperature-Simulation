@@ -5,10 +5,9 @@ precision mediump float;
 #define LOWP
 #endif
 
-const int steps = 10;
+const int steps = 12;
 varying vec4 v_color;
 varying vec2 v_texCoords;
-varying vec2 v_position;
 
 uniform sampler2D u_texture;
 uniform vec2 u_offsets;
@@ -35,10 +34,12 @@ void main()
             {
                 if (i == 0 && j == 0) continue;
                 vec4 new = texture2D(u_texture, vec2(v_texCoords.x + (u_offsets.x * i), v_texCoords.y + (u_offsets.y * j)));
-                col += vec4(new.rgb, new.a / 4 / (abs(i) + abs(j)));
+                int dist = abs(i) + abs(j);
+                col += vec4(new.rgb, new.a / (dist * dist) * (col.r + 1));
             }
         }
 
-        gl_FragColor = vec4(col.rgb / steps, col.a * col.r / 2);;
+        gl_FragColor = col / (steps*steps);
+        //gl_FragColor = vec4(col.rgb / steps, col.a * col.r / 2);
     }
 }
